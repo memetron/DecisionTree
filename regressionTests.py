@@ -30,7 +30,7 @@ def polynomial_regression_with_decision_tree():
     X, y_true = create_polynomial_data(degree=3)
 
     # Fit Decision Tree Regressor
-    model = randomForest.RandomForest(decisionTree.SplitCondition.MSE, numTrees=1000, splitProportion=0.5)
+    model = randomForest.RandomForest(decisionTree.SplitCondition.MSE, numTrees=100, splitProportion=0.5)
     model.fit(X, y_true)
 
     # Predictions

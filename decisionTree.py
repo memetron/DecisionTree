@@ -11,7 +11,6 @@ class SplitCondition(Enum):
     CONDITIONAL_ENTROPY = 1
     GINI_SPLIT = 2
     MSE = 3
-    WEIGHTED_ZERO_ONE = 4
 
 
 CLASSIFIERS = [SplitCondition.GINI_SPLIT, SplitCondition.CONDITIONAL_ENTROPY]
@@ -146,31 +145,3 @@ class DecisionTree:
 
     def toString(self, featureNames):
         return self._root.toString(featureNames)
-
-
-def wine_data():
-    wine = datasets.load_wine()
-    X_train, X_test, y_train, y_test = train_test_split(wine.data, wine.target, test_size=0.3)
-    return X_train, y_train, X_test, y_test
-
-
-def test1():
-    X_train, y_train, X_test, y_test = wine_data()
-    model = DecisionTree(SplitCondition.CONDITIONAL_ENTROPY)
-    model.fit(X_train, y_train)
-    correctCount = 0
-    incorrectCount = 0
-    for i in range(len(y_test)):
-        if model.predict(X_test[i]) == y_test[i]:
-            correctCount += 1
-        else:
-            incorrectCount += 1
-    print(f"Model accuracy = {correctCount / (correctCount + incorrectCount)}")
-
-
-def main():
-    test1()
-
-
-if __name__ == "__main__":
-    test1()

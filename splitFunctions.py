@@ -3,6 +3,7 @@ import statistics
 import numpy as np
 
 
+# Abstract parent splitter
 class Splitter:
     def split(self, features: np.ndarray, indices, index: int, threshold: float):
         left = features[indices][:, index] < threshold
@@ -18,6 +19,7 @@ class Splitter:
         raise NotImplemented()
 
 
+# Split using conditional entropy
 class EntropySplitter(Splitter):
     def _entropy(self, labels: np.ndarray):
         elements, counts = np.unique(labels, return_counts=True)
@@ -35,6 +37,7 @@ class EntropySplitter(Splitter):
         return True
 
 
+# Split using gini impurity
 class GiniSplitter(Splitter):
     def _gini(self, labels):
         elements, counts = np.unique(labels, return_counts=True)
@@ -53,6 +56,7 @@ class GiniSplitter(Splitter):
         return True
 
 
+# split using mean-squared error
 class MSESplitter(Splitter):
     def _mse(self, labels: np.ndarray):
         return np.mean((labels - labels.mean()) ** 2)
@@ -68,21 +72,24 @@ class MSESplitter(Splitter):
         return False
 
 
+# Split using a weighted zero-one loss
 class WeightedZeroOneSplitter(Splitter):
     _weights: np.ndarray
 
     def __init__(self, weights: np.ndarray):
         self._weights = weights
 
-    def weighted_zero_one(self, labels: np.ndarray):
+    def weighted_zero_one(self, labels: np.ndarray, weights):
         target = statistics.mode(labels)
         misses = labels != target
-        return np.sum(misses * self._weights)
+        return np.sum(misses * weights)
 
     def splitLoss(self, left, right, labels) -> float:
         leftLabels = labels[left]
         rightLabels = labels[right]
-        return self.weighted_zero_one(leftLabels) + self.weighted_zero_one(rightLabels)
+        leftWeights = self._weights[left]
+        rightWeights = self._weights[right]
+        return self.weighted_zero_one(leftLabels, leftWeights) + self.weighted_zero_one(rightLabels, rightWeights)
 
     def isClassifier(self) -> bool:
         return True

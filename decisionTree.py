@@ -4,7 +4,6 @@ import statistics
 
 from sklearn import datasets
 from sklearn.model_selection import train_test_split
-
 import splitFunctions
 
 
@@ -26,52 +25,37 @@ class DecisionTreeNode:
     _splitCondition: SplitCondition
     _isClassifier: bool
     _splitProportion: float
+    _splitter: splitFunctions.Splitter
 
     # returns (-1, -1) if no splits possible with min size
-    def best_split(self, features: np.ndarray, labels: np.ndarray, indices,weights:np.ndarray=None):
+    def best_split(self, features: np.ndarray, labels: np.ndarray, indices):
         num_rows, num_cols = features.shape
 
         if self._splitProportion != 1.0:
             indices = np.random.choice(indices, size=int(len(indices) * self._splitProportion), replace=False)
 
         features_subset = features[indices]
-        labels_subset = labels[indices]
 
         best_split_info = (float('inf'), -1, -1)
         for feature_index in range(num_cols):
             unique_feature_vals = np.unique(features_subset[:, feature_index])
             candidate_thresholds = (unique_feature_vals[:-1] + unique_feature_vals[1:]) / 2
             for threshold in candidate_thresholds:
-                left_subset, right_subset = splitFunctions.split(features, indices, feature_index, threshold)
+                left_subset, right_subset = self._splitter.split(features, indices, feature_index, threshold)
                 if np.size(left_subset) >= self._minData and np.size(right_subset) >= self._minData:
                     # Various split conditions
-                    if self._splitCondition == SplitCondition.CONDITIONAL_ENTROPY:
-                        entropy = splitFunctions.conditionalEntropy(left_subset, right_subset, labels)
-                        if entropy < best_split_info[0]:
-                            best_split_info = (entropy, feature_index, threshold)
-
-                    elif self._splitCondition == SplitCondition.GINI_SPLIT:
-                        gini_impurity = splitFunctions.giniSplit(left_subset, right_subset, labels)
-                        if gini_impurity < best_split_info[0]:
-                            best_split_info = (gini_impurity, feature_index, threshold)
-
-                    elif self._splitCondition == SplitCondition.MSE:
-                        mse = splitFunctions.mse_split(left_subset, right_subset, labels)
-                        if mse < best_split_info[0]:
-                            best_split_info = (mse, feature_index, threshold)
-
-                    elif self._splitCondition == SplitCondition.WEIGHTED_ZERO_ONE:
-                        loss = splitFunctions.weighted_zero_one_split(left_subset, right_subset, labels, weights)
-                        if loss < best_split_info[0]:
-                            best_split_info = (loss, feature_index, threshold)
+                    loss = self._splitter.splitLoss(left_subset, right_subset, labels)
+                    if loss < best_split_info[0]:
+                        best_split_info = (loss, feature_index, threshold)
 
         return best_split_info[1], best_split_info[2]
 
-    def __init__(self, features: np.ndarray, labels: np.ndarray, depth: int, splitCondition: SplitCondition,
-                 indices, minData: int = 3, maxDepth: int = 5, splitProportion: float = 1.0):
+    def __init__(self, features: np.ndarray, labels: np.ndarray, depth: int, splitter: splitFunctions.Splitter,
+                 indices: np.ndarray, minData: int = 3, maxDepth: int = 5, splitProportion: float = 1.0):
+
         self._depth = depth
-        self._splitCondition = splitCondition
-        self._isClassifier = splitCondition in CLASSIFIERS
+        self._splitter = splitter
+        self._isClassifier = splitter.isClassifier()
         self._minData = minData
         self._maxDepth = maxDepth
         self._splitProportion = splitProportion
@@ -95,12 +79,12 @@ class DecisionTreeNode:
             else:
                 self._index = index
                 self._threshold = threshold
-                leftIndices, rightIndices = splitFunctions.split(features, indices, index, threshold)
-                self._left = DecisionTreeNode(features, labels, self._depth + 1, self._splitCondition, leftIndices,
+                leftIndices, rightIndices = splitter.split(features, indices, index, threshold)
+                self._left = DecisionTreeNode(features, labels, self._depth + 1, self._splitter, leftIndices,
                                               maxDepth=self._maxDepth, minData=self._minData,
                                               splitProportion=self._splitProportion)
-                self._right = DecisionTreeNode(features, labels, self._depth + 1, self._splitCondition, rightIndices,
-                                              maxDepth=self._maxDepth, minData=self._minData,
+                self._right = DecisionTreeNode(features, labels, self._depth + 1, self._splitter, rightIndices,
+                                               maxDepth=self._maxDepth, minData=self._minData,
                                                splitProportion=self._splitProportion)
                 self._isLeaf = False
 
@@ -125,22 +109,31 @@ class DecisionTreeNode:
 
 class DecisionTree:
     _root: DecisionTreeNode
-    _splitCondition: SplitCondition
+    _splitter: splitFunctions.Splitter
     _splitProportion: float
     _minData: int
     _maxDepth: int
 
-    def __init__(self, splitCondition: SplitCondition,
-                 minData: int = 3, maxDepth: int = 5, splitProportion: float = 1.0):
+    def __init__(self, splitCondition: SplitCondition=SplitCondition.CONDITIONAL_ENTROPY,
+                 minData: int = 3, maxDepth: int = 5, splitProportion: float = 1.0,
+                 splitter: splitFunctions.Splitter=None):
         self._minData = minData
         self._maxDepth = maxDepth
-        self._splitCondition = splitCondition
         self._splitProportion = splitProportion
+        if splitter is not None:
+            self._splitter = splitter
+        elif splitCondition == SplitCondition.CONDITIONAL_ENTROPY:
+            self._splitter = splitFunctions.EntropySplitter()
+        elif splitCondition == SplitCondition.GINI_SPLIT:
+            self._splitter = splitFunctions.GiniSplitter()
+        elif splitCondition == SplitCondition.MSE:
+            self._splitter = splitFunctions.MSESplitter()
 
     def fit(self, features: np.ndarray, labels: np.ndarray):
         num_rows, num_cols = features.shape
-        self._root = DecisionTreeNode(features, labels, 0, self._splitCondition, np.arange(0, num_rows),
-                                      minData=self._minData, maxDepth=self._maxDepth, splitProportion=self._splitProportion)
+        self._root = DecisionTreeNode(features, labels, 0, self._splitter, np.arange(0, num_rows),
+                                      minData=self._minData, maxDepth=self._maxDepth,
+                                      splitProportion=self._splitProportion)
 
     def predict(self, features):
         return self._root.predict(features)
@@ -154,10 +147,12 @@ class DecisionTree:
     def toString(self, featureNames):
         return self._root.toString(featureNames)
 
+
 def wine_data():
     wine = datasets.load_wine()
     X_train, X_test, y_train, y_test = train_test_split(wine.data, wine.target, test_size=0.3)
     return X_train, y_train, X_test, y_test
+
 
 def test1():
     X_train, y_train, X_test, y_test = wine_data()
@@ -172,8 +167,10 @@ def test1():
             incorrectCount += 1
     print(f"Model accuracy = {correctCount / (correctCount + incorrectCount)}")
 
+
 def main():
     test1()
+
 
 if __name__ == "__main__":
     test1()

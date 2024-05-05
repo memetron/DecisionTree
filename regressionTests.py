@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+
+import gradientBoostedTree
 import randomForest
 import decisionTree
 
@@ -20,23 +22,20 @@ def plot_predictions_vs_actual(x, y_true, y_pred):
     plt.plot(x, y_pred, color='red', label='Predicted')
     plt.xlabel('feature')
     plt.ylabel('label')
-    plt.title("random forest regression")
+    plt.title("ensemble regression")
     plt.legend()
     plt.show()
 
 
 def polynomial_regression_with_decision_tree():
-    # Create polynomial data
     X, y_true = create_polynomial_data(degree=3)
 
-    # Fit Decision Tree Regressor
-    model = randomForest.RandomForest(decisionTree.SplitCondition.MSE, numTrees=100, splitProportion=0.5)
+    # model = randomForest.RandomForest(decisionTree.SplitCondition.MSE, numTrees=1, splitProportion=1)
+    model = gradientBoostedTree.GradientBoostedTree(100)
     model.fit(X, y_true)
 
-    # Predictions
     y_pred = model.predict_mult(X)
 
-    # Plot
     plot_predictions_vs_actual(X[:, 0], y_true, y_pred)
 
 
